@@ -276,7 +276,7 @@ void cpu::handleOutInstruction(instructionData& instructionObj)
 	switch (instructionObj.oprandB)
 	{
 	case 0:
-		std::cout << (char)(readGeneralRegister(instructionObj.oprandA) & 0xFF);
+		//std::cout << (char)(readGeneralRegister(instructionObj.oprandA) & 0xFF);
 		break;
 	}
 }
