@@ -1,4 +1,4 @@
-<p>A CPU emulator written in C++. The instruction set is lightly inspired by x86 and the "Exploitation and Enumeration - Hard" challenge in NCL Fall 2024  </p>
+<p>A CPU emulator written in C++. The instruction set is lightly inspired by x86 and the "Exploitation and Enumeration - Hard" challenge in NCL Fall 2024.</p>
 
 Design Goal:
 <uL>
@@ -9,4 +9,4 @@ Design Goal:
   <li>Physic Memory Protection(PMP)</li>
 </uL>
 
-<p>An assembler is for this CPU is avaliable here</p>
+<p>An assembler is for this CPU is avaliable here.</p>
