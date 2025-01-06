@@ -1,8 +1,12 @@
-A CPU emulator written in C++. The instruction set is lightly inspired by x86 and the "Exploitation and Enumeration - Hard" challenge in NCL Fall 2024  
+<p>A CPU emulator written in C++. The instruction set is lightly inspired by x86 and the "Exploitation and Enumeration - Hard" challenge in NCL Fall 2024  </p>
 
 Design Goal:
-  Stack operations
-  Basic arithmetics
-  Basic CPU operations
-  Privilege Levels
-  Physic Memory Protection(PMP)
+<uL>
+  <li>Stack operations</li>
+  <li>Basic arithmetics</li>
+  <li>Basic CPU operations</li>
+  <li>Privilege Levels</li>
+  <li>Physic Memory Protection(PMP)</li>
+</uL>
+
+<p>An assembler is for this CPU is avaliable here</p>
