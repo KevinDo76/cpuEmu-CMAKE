@@ -1,1 +1,0 @@
-Compile with Clang 19.1.5 x86_64-redhat-linux-gnu
