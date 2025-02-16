@@ -4,7 +4,7 @@
 int main()
 {
 	cpu CPU;
-	CPU.loadBinaryImage("program.bin");
+	CPU.loadBinaryImage("/home/coldest/Documents/c++ stuff/CpuEmu-Assembler/build/program.bin");
 	auto start = std::chrono::high_resolution_clock::now();
 	while (!CPU.getHaltState())
 	{

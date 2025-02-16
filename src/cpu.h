@@ -86,8 +86,10 @@ private:
 
 	bool clockHalted;
 
-	uint32_t readGeneralRegister(int index);
-	void writeGeneralRegister(int index, uint32_t value);
+	uint32_t readGeneralRegister(uint32_t index);
+	void writeGeneralRegister(uint32_t index, uint32_t value);
+	void writeMemory4(uint32_t index, uint32_t value);
+
 	void incrementAndFetch(instructionData& instructionObj);
 
 	void handleCMPInstruction(instructionData& instructionObj);
@@ -96,7 +98,7 @@ private:
 	bool decodeAndExecute(instructionData& instructionObj);
 	uint32_t cycleCount;
 
-	uint8_t readMemory8(uint32_t address);
+	uint8_t readMemory1(uint32_t address);
 
 	uint32_t RA; // General Purpose Register
 	uint32_t RB; // General Purpose Register

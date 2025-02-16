@@ -25,12 +25,6 @@ bool cpu::clockTick()
 	cycleCount++;
 	instructionData data;
 	incrementAndFetch(data);
-
-	if (cycleCount % (rand() + 1) <= 1)
-	{
-		memoryArray[cycleCount % CPU_AVALIABLE_MEMORY] = (char)rand();
-	}
-
 	decodeAndExecute(data);
 
 	return true;
@@ -121,12 +115,8 @@ std::string cpu::instructionEnumToName(instructions instr)
 
 uint32_t cpu::popStack()
 {
-	uint32_t value = 0;
-	for (int i = 0; i < 4; i++)
-	{
-		SP--;
-		value = (value >> 8 ) | (memoryArray[BP - SP]<<24);
-	}
+	SP-=4;
+	uint32_t value = (*((uint32_t*)(memoryArray+BP-SP-4))); // dirty memory poking to allow for misaligned uint32_t insertion
 	
 	return value;
 }
@@ -139,12 +129,11 @@ uint32_t cpu::getCycleCount()
 void cpu::pushStack(uint32_t value)
 {
 	//value = flipEndian(value);
-	for (int i = 0; i < 4; i++)
-	{
-		memoryArray[BP - SP] = (value & 0xff000000)>>24;
-		SP++;
-		value = value << 8;
-	}
+
+	*((uint32_t*)(memoryArray+BP-SP-4)) = value; // dirty memory poking to allow for misaligned uint32_t insertion
+	SP+=4;
+
+	return;
 }
 
 void cpu::cpuDebugCheck(std::string errorMessage)
@@ -153,7 +142,7 @@ void cpu::cpuDebugCheck(std::string errorMessage)
 	std::cout << "\nCPU debug check\n" << errorMessage;
 }
 
-uint32_t cpu::readGeneralRegister(int index)
+uint32_t cpu::readGeneralRegister(uint32_t index)
 {
 	switch (index)
 	{
@@ -165,6 +154,8 @@ uint32_t cpu::readGeneralRegister(int index)
 		return RC;
 	case 3:
 		return RD;
+	case 4:
+		return CMPREG;
 	default:
 		std::stringstream errorMessage;
 		errorMessage << "Register read: Illegal register value, index: " << index;
@@ -173,7 +164,7 @@ uint32_t cpu::readGeneralRegister(int index)
 	}
 }
 
-void cpu::writeGeneralRegister(int index, uint32_t value)
+void cpu::writeGeneralRegister(uint32_t index, uint32_t value)
 {
 	switch (index)
 	{
@@ -207,6 +198,16 @@ void cpu::writeGeneralRegister(int index, uint32_t value)
 	}
 }
 
+void cpu::writeMemory4(uint32_t index, uint32_t value)
+{
+	if (index < CPU_AVALIABLE_MEMORY)
+	{
+		//dirty memory write tehehe 
+		// dirty memory poking to allow for misaligned uint32_t insertion
+		*((uint32_t*)(memoryArray + index)) = value;
+	}
+}
+
 void cpu::incrementAndFetch(instructionData& instructionObj)
 {
 	if (this->PC > CPU_AVALIABLE_MEMORY - 16)
@@ -215,10 +216,10 @@ void cpu::incrementAndFetch(instructionData& instructionObj)
 		return;
 	}
 	
-	instructionObj.instr = (instructions)((this->memoryArray[PC]) | (this->memoryArray[PC + 1] << 8) | (this->memoryArray[PC + 2] << 16) | (this->memoryArray[PC + 3] << 24));
-	instructionObj.oprandA = (instructions)((this->memoryArray[PC+4]) | (this->memoryArray[PC + 5] << 8) | (this->memoryArray[PC + 6] << 16) | (this->memoryArray[PC + 7] << 24));
-	instructionObj.oprandB = (instructions)((this->memoryArray[PC+8]) | (this->memoryArray[PC + 9] << 8) | (this->memoryArray[PC + 10] << 16) | (this->memoryArray[PC + 11] << 24));
-	instructionObj.oprandC = (instructions)((this->memoryArray[PC+12]) | (this->memoryArray[PC + 13] << 8) | (this->memoryArray[PC + 14] << 16) | (this->memoryArray[PC + 15] << 24));
+	instructionObj.instr = (instructions)(*(uint32_t*)(this->memoryArray+PC));
+	instructionObj.oprandA = (*(uint32_t*)(this->memoryArray+PC+4));
+	instructionObj.oprandB = (*(uint32_t*)(this->memoryArray+PC+8));
+	instructionObj.oprandC = (*(uint32_t*)(this->memoryArray+PC+12));
 	PC += 16;
 }
 
@@ -286,18 +287,24 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 	uint32_t address;
 	switch (instructionObj.instr)
 	{
+	case instructions::WRITEIMM4:
+		writeMemory4(instructionObj.oprandA, instructionObj.oprandB);
+		break;
 	case instructions::INC:
 		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) + 1);
 		break;
 	case instructions::DEC:
 		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) - 1);
+		break;
 	case instructions::PUSHREG:
 		pushStack(RA);
 		pushStack(RB);
 		pushStack(RC);
 		pushStack(RD);
+		pushStack(CMPREG);
 		break;
 	case instructions::POPREG:
+		CMPREG = popStack();
 		RD = popStack();
 		RC = popStack();
 		RB = popStack();
@@ -345,7 +352,7 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 		handleOutInstruction(instructionObj);
 		break;
 	case instructions::READPTR1: // arg1: Reg Index PTR / arg2: Reg Index Ouput
-		writeGeneralRegister(instructionObj.oprandA, readMemory8(readGeneralRegister(instructionObj.oprandB)));
+		writeGeneralRegister(instructionObj.oprandA, readMemory1(readGeneralRegister(instructionObj.oprandB)));
 		break;
 	case instructions::SUB:
 		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) - readGeneralRegister(instructionObj.oprandB));
@@ -377,7 +384,7 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 	return true;
 }
 
-uint8_t cpu::readMemory8(uint32_t address)
+uint8_t cpu::readMemory1(uint32_t address)
 {
 	if (address < CPU_AVALIABLE_MEMORY)
 	{
