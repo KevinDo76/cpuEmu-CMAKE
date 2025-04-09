@@ -116,9 +116,16 @@ std::string cpu::instructionEnumToName(instructions instr)
 uint32_t cpu::popStack()
 {
 	SP-=4;
-	uint32_t value = (*((uint32_t*)(memoryArray+BP-SP-4))); // dirty memory poking to allow for misaligned uint32_t insertion
-	
-	return value;
+	if (BP-SP-3 >=0 && BP-SP-3 < CPU_AVALIABLE_MEMORY )
+	{
+		uint32_t value = (*((uint32_t*)(memoryArray+BP-SP-3))); // dirty memory poking to allow for misaligned uint32_t insertion
+		return value;
+	}
+	else
+	{
+		cpuDebugCheck("Stack underflow");
+		return 0;
+	}
 }
 
 uint32_t cpu::getCycleCount()
@@ -128,12 +135,15 @@ uint32_t cpu::getCycleCount()
 
 void cpu::pushStack(uint32_t value)
 {
-	//value = flipEndian(value);
-
-	*((uint32_t*)(memoryArray+BP-SP-4)) = value; // dirty memory poking to allow for misaligned uint32_t insertion
-	SP+=4;
-
-	return;
+	if (BP-SP-3 >=0 && BP-SP-3 < CPU_AVALIABLE_MEMORY )
+	{
+		*((uint32_t*)(memoryArray+BP-SP-3)) = value; // dirty memory poking to allow for misaligned uint32_t insertion
+		SP+=4;
+	}
+	else
+	{
+		cpuDebugCheck("Stack underflow");
+	}
 }
 
 void cpu::cpuDebugCheck(std::string errorMessage)
@@ -156,6 +166,12 @@ uint32_t cpu::readGeneralRegister(uint32_t index)
 		return RD;
 	case 4:
 		return CMPREG;
+	case 5:
+		return SP;
+	case 6:
+		return BP;
+	case 7:
+		return RF;
 	default:
 		std::stringstream errorMessage;
 		errorMessage << "Register read: Illegal register value, index: " << index;
@@ -206,6 +222,36 @@ void cpu::writeMemory4(uint32_t index, uint32_t value)
 		// dirty memory poking to allow for misaligned uint32_t insertion
 		*((uint32_t*)(memoryArray + index)) = value;
 	}
+	else
+	{
+		cpuDebugCheck("Memory write out of bound");
+	}
+}
+
+void cpu::writeMemory2(uint32_t index, uint16_t value)
+{
+	if (index < CPU_AVALIABLE_MEMORY)
+	{
+		//dirty memory write tehehe 
+		// dirty memory poking to allow for misaligned uint32_t insertion
+		*((uint16_t*)(memoryArray + index)) = value;
+	}
+	else
+	{
+		cpuDebugCheck("Memory write out of bound");
+	}
+}
+
+void cpu::writeMemory1(uint32_t index, uint8_t value)
+{
+	if (index < CPU_AVALIABLE_MEMORY)
+	{
+		memoryArray[index] = value;
+	}
+	else
+	{
+		cpuDebugCheck("Memory write out of bound");
+	}
 }
 
 void cpu::incrementAndFetch(instructionData& instructionObj)
@@ -248,28 +294,28 @@ void cpu::handleCMPInstruction(instructionData& instructionObj)
 	switch (CMPREG)
 	{
 	case CMPenum::EQUAL:
-		result = readGeneralRegister(instructionObj.oprandB) == readGeneralRegister(instructionObj.oprandC);
+		result = readGeneralRegister(instructionObj.oprandA) == readGeneralRegister(instructionObj.oprandB);
 		break;
 	case CMPenum::GREATER_THAN:
-		result = readGeneralRegister(instructionObj.oprandB) > readGeneralRegister(instructionObj.oprandC);
+		result = readGeneralRegister(instructionObj.oprandA) > readGeneralRegister(instructionObj.oprandB);
 		break;
 	case CMPenum::GREATER_THAN_OR_EQUAL:
-		result = readGeneralRegister(instructionObj.oprandB) >= readGeneralRegister(instructionObj.oprandC);
+		result = readGeneralRegister(instructionObj.oprandA) >= readGeneralRegister(instructionObj.oprandB);
 		break;
 	case CMPenum::LESS_THAN:
-		result = readGeneralRegister(instructionObj.oprandB) < readGeneralRegister(instructionObj.oprandC);
+		result = readGeneralRegister(instructionObj.oprandA) < readGeneralRegister(instructionObj.oprandB);
 		break;
 	case CMPenum::LESS_THAN_OR_EQUAL:
-		result = readGeneralRegister(instructionObj.oprandB) <= readGeneralRegister(instructionObj.oprandC);
+		result = readGeneralRegister(instructionObj.oprandA) <= readGeneralRegister(instructionObj.oprandB);
 		break;
 	case CMPenum::NOT_EQUAL:
-		result = readGeneralRegister(instructionObj.oprandB) != readGeneralRegister(instructionObj.oprandC);
+		result = readGeneralRegister(instructionObj.oprandA) != readGeneralRegister(instructionObj.oprandB);
 		break;
 	default:
 		cpuDebugCheck("Unknown cmp value");
 	}
 
-	writeGeneralRegister(instructionObj.oprandA, (uint32_t)result);
+	RF = (RF & 0b11111110) | result;
 }
 
 void cpu::handleOutInstruction(instructionData& instructionObj)
@@ -285,16 +331,28 @@ void cpu::handleOutInstruction(instructionData& instructionObj)
 bool cpu::decodeAndExecute(instructionData& instructionObj)
 {
 	uint32_t address;
+	uint64_t result;
 	switch (instructionObj.instr)
 	{
+	case instructions::MOV:
+		writeGeneralRegister(instructionObj.oprandA, instructionObj.oprandB);
+		break;
 	case instructions::WRITEIMM4:
 		writeMemory4(instructionObj.oprandA, instructionObj.oprandB);
 		break;
+	case instructions::WRITEIMM2:
+		writeMemory2(instructionObj.oprandA, instructionObj.oprandB);
+		break;
+	case instructions::WRITEIMM1:
+		writeMemory1(instructionObj.oprandA, instructionObj.oprandB);
+		break;
 	case instructions::INC:
-		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) + 1);
+		result = addAndSetFlags((uint64_t)readGeneralRegister(instructionObj.oprandA), 1);
+		writeGeneralRegister(instructionObj.oprandA, (uint32_t)result);
 		break;
 	case instructions::DEC:
-		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) - 1);
+		result = subtractAndSetFlags((uint64_t)readGeneralRegister(instructionObj.oprandA), 1);
+		writeGeneralRegister(instructionObj.oprandA, (uint32_t)result);
 		break;
 	case instructions::PUSHREG:
 		pushStack(RA);
@@ -324,17 +382,14 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 		writeGeneralRegister(instructionObj.oprandA, popStack());
 		break;
 	case instructions::JMPIF:
-		address = readGeneralRegister(instructionObj.oprandB);
-		if (address < CPU_AVALIABLE_MEMORY && readGeneralRegister(instructionObj.oprandA))
+		address = readGeneralRegister(instructionObj.oprandA);
+		if (address < CPU_AVALIABLE_MEMORY && (RF&0x1))
 		{
 			PC = address;
 		}
 		break;
 	case instructions::CMP:
 		handleCMPInstruction(instructionObj);
-		break;
-	case instructions::MOV:
-		writeGeneralRegister(instructionObj.oprandA, instructionObj.oprandB);
 		break;
 	case instructions::NOP:
 		break;
@@ -355,10 +410,13 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 		writeGeneralRegister(instructionObj.oprandA, readMemory1(readGeneralRegister(instructionObj.oprandB)));
 		break;
 	case instructions::SUB:
-		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) - readGeneralRegister(instructionObj.oprandB));
+		writeGeneralRegister(instructionObj.oprandA, subtractAndSetFlags(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandB)));
 		break;
 	case instructions::ADD:
-		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) + readGeneralRegister(instructionObj.oprandB));
+		result = (uint64_t)readGeneralRegister(instructionObj.oprandA) + (uint64_t)readGeneralRegister(instructionObj.oprandB);
+		writeGeneralRegister(instructionObj.oprandA, (uint32_t)result);
+		RF = (RF & 0b11111101) | ((uint32_t)result & 2147483648);
+		RF = (RF & 0b11111011) | ((result >> 32)!=0);
 		break;
 	case instructions::XOR:
 		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) ^ readGeneralRegister(instructionObj.oprandB));
@@ -384,12 +442,58 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 	return true;
 }
 
+int64_t cpu::addAndSetFlags(int64_t a, int64_t b)
+{
+    int64_t sum = a+b;
+	if ((uint64_t)(sum>>32))
+	{
+		this->RF|=0b00000100;
+	}
+	else
+	{
+		this->RF&=0b11111011;
+	}
+
+	if (a > 0 && b > UINT32_MAX - b)
+	{
+		this->RF|=0b00001000;
+	}
+	else
+	{
+		this->RF&=0b11110111;
+	}
+	return sum;
+}
+
+int64_t cpu::subtractAndSetFlags(int64_t a, int64_t b)
+{
+    int64_t sum = a-b;
+	if ((uint64_t)(sum>>32))
+	{
+		this->RF|=0b00000100;
+	}
+	else
+	{
+		this->RF&=0b11111011;
+	}
+
+	if (b < 0 && a > INT_MAX + b)
+	{
+		this->RF|=0b00001000;
+	}
+	else
+	{
+		this->RF&=0b11110111;
+	}
+	return sum;
+}
+
 uint8_t cpu::readMemory1(uint32_t address)
 {
 	if (address < CPU_AVALIABLE_MEMORY)
 	{
 		return memoryArray[address];
 	}
-	cpuDebugCheck("Memory out of bound");
+	cpuDebugCheck("Memory read out of bound");
 	return 0;
 }

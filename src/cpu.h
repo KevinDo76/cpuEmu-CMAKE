@@ -2,6 +2,7 @@
 #define CPU_AVALIABLE_MEMORY 0x20000
 
 #include <stdint.h>
+#include <limits.h>
 
 class instructionData;
 
@@ -39,9 +40,9 @@ public:
 		READPTR4   = 0x08,    // arg1: Reg Index Result / arg2: Reg Index PTR 
 		READPTR2   = 0x09,    // arg1: Reg Index Result / arg2: Reg Index PTR 
 /*Done*/READPTR1   = 0x0a,    // arg1: Reg Index Result / arg2: Reg Index PTR 
-		WRITEIMM4  = 0x0b,    // arg1: Address<32> / arg2: Reg Index Value
-		WRITEIMM2  = 0x0c,	  // arg1: Address<32> / arg2: Reg Index Value
-		WRITEIMM1  = 0x0d,	  // arg1: Address<32> / arg2: Reg Index Value
+/*Done*/WRITEIMM4  = 0x0b,    // arg1: Address<32> / arg2: Reg Index Value
+/*Done*/WRITEIMM2  = 0x0c,	  // arg1: Address<32> / arg2: Reg Index Value
+/*Done*/WRITEIMM1  = 0x0d,	  // arg1: Address<32> / arg2: Reg Index Value
 		WRITEPTR4  = 0x0e,	  // arg1: Reg Index PTR / arg2: Reg Index Value
 		WRITEPTR2  = 0x0f,	  // arg1: Reg Index PTR / arg2: Reg Index Value
 		WRITEPTR1  = 0x10,	  // arg1: Reg Index PTR / arg2: Reg Index Value
@@ -54,10 +55,10 @@ public:
 /*Done*/AND        = 0x17,    // arg1: Reg Index Result/Oprand A / arg2: Reg Index Oprand B
 /*Done*/OR         = 0x18,    // arg1: Reg Index Result/Oprand A / arg2: Reg Index Oprand B
 /*Done*/MOV        = 0x19,	  // arg1: Reg Index Result / arg2: Value<32> 
-/*Done*/CMP        = 0x1a,	  // arg1: Reg Index Result / arg2: Reg Index Value 1 / arg3: Reg Index Value 2
+/*Done*/CMP        = 0x1a,	  // arg1: Reg Index Value 1 / arg2: Reg Index Value 2
 /*Done*/JMP        = 0x1b,	  // arg1: Reg Index Value
 /*Done*/JMPIMM     = 0x1c,	  // arg1: Value<32>
-/*Done*/JMPIF      = 0x1d,	  // arg1: Reg Index Check(jump if register is not zero) / arg2: Reg Index Jump Value
+/*Done*/JMPIF      = 0x1d,	  // arg1: Reg Index Jump Value(if cmp bit in RF is set)
 		JMPREL     = 0x1e,	  // arg1: Reg Index Value<signed>
 		JMPRELIF   = 0x1f,	  // arg1: Reg Index Check(jump if register is not zero) / arg2: Reg Index Jump Value<signed>
 /*Done*/OUT        = 0x20,    // arg1: Reg Index Value / arg2: Address<32>
@@ -88,7 +89,10 @@ private:
 
 	uint32_t readGeneralRegister(uint32_t index);
 	void writeGeneralRegister(uint32_t index, uint32_t value);
+
 	void writeMemory4(uint32_t index, uint32_t value);
+	void writeMemory2(uint32_t index, uint16_t value);
+	void writeMemory1(uint32_t index, uint8_t value);
 
 	void incrementAndFetch(instructionData& instructionObj);
 
@@ -96,6 +100,10 @@ private:
 	void handleOutInstruction(instructionData& instructionObj);
 
 	bool decodeAndExecute(instructionData& instructionObj);
+	//internal operation
+	int64_t addAndSetFlags(int64_t a, int64_t b);
+	int64_t subtractAndSetFlags(int64_t a, int64_t b);
+	
 	uint32_t cycleCount;
 
 	uint8_t readMemory1(uint32_t address);
@@ -109,7 +117,23 @@ private:
 	uint32_t BP; // Stack Base
 
 	uint8_t CMPREG; //ALU compare code.
-	uint8_t RF; //flag register
+	uint8_t RF; //flag register 
+	// bit layout
+	/*
+	-- most significant
+	0
+	0
+	0
+	0
+	
+	0 - Overflow/Underflow Flag (incorrect result in unsigned operation)
+	0 - Carry Flag (incorrect result in unsigned operation)
+	0 - Sign Flag
+	0 - Compare success
+	-- least significant
+	
+	*/
+
 	uint8_t* memoryArray;
 };
 
