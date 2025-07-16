@@ -4,27 +4,58 @@
 #include <iostream>
 #include <fstream>
 #include "cpu.h" 
+#include <chrono>
+
+void handleOutput(bool* isRunning, std::string* buffer, std::mutex* mutex)
+{
+	std::cout<<"Thread Started\n";
+	while (*(isRunning))
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		mutex->lock();
+		std::cout<<*buffer;
+		*buffer = "";
+		mutex->unlock();
+	}
+	std::cout<<"Thread Exiting\n";
+}
 
 cpu::cpu()
-	: RA(0), RB(0), RC(0), RD(0), PC(0), SP(0), BP(0), RF(0), CMPREG(0), clockHalted(false), cycleCount(0)
+	: RA(0), RB(0), RC(0), RD(0), PC(0), SP(0), BP(0), RF(0), CMPREG(0), HIREG(0), clockHalted(false), cycleCount(0), isInHardwareInterrupt(0), isThreadRunning(true)
 {
 	this->memoryArray = new uint8_t[CPU_AVALIABLE_MEMORY]{0};
+	outputThread = new std::thread(&handleOutput, &isThreadRunning, &stringBuffer, &outputMutex);
 }
 
 cpu::~cpu()
 {
 	delete[] this->memoryArray;
+	isThreadRunning = false;
+	outputThread->join();
+	delete outputThread;
 }
 
 bool cpu::clockTick()
 {
 	if (clockHalted)
 	{
+		isThreadRunning = false;
 		return false;
 	}
 	cycleCount++;
 	instructionData data;
-	incrementAndFetch(data);
+
+	if ((RF & 0x10) && hardwareInterruptTriggered && !isInHardwareInterrupt)
+	{
+		hardwareInterruptTriggered = false;
+		isInHardwareInterrupt = true;
+		RF &= 0xef;
+		pushStack(PC);
+		PC = HIREG;
+	} else {
+		incrementAndFetch(data);
+	}
+	//std::cout<< instructionEnumToName(data.instr)<<"\n";
 	decodeAndExecute(data);
 
 	return true;
@@ -48,69 +79,54 @@ bool cpu::getHaltState()
 std::string cpu::instructionEnumToName(instructions instr)
 {
 	switch (instr) {
-		case instructions::NOP:
-			return "NOP";
-		case instructions::CALL:
-			return "CALL";
-		case instructions::RET:
-			return "RET";
-		case instructions::POP:
-			return "POP";
-		case instructions::PUSH:
-			return "PUSH";
-		case instructions::READIMM4:
-			return "READIMM4";
-		case instructions::READIMM2:
-			return "READIMM2";
-		case instructions::READIMM1:
-			return "READIMM1";
-		case instructions::READPTR4:
-			return "READPTR4";
-		case instructions::READPTR2:
-			return "READPTR2";
-		case instructions::READPTR1:
-			return "READPTR1";
-		case instructions::WRITEIMM4:
-			return "WRITEIMM4";
-		case instructions::WRITEIMM2:
-			return "WRITEIMM2";
-		case instructions::WRITEIMM1:
-			return "WRITEIMM1";
-		case instructions::WRITEPTR4:
-			return "WRITEPTR4";
-		case instructions::WRITEPTR2:
-			return "WRITEPTR2";
-		case instructions::WRITEPTR1:
-			return "WRITEPTR1";
-		case instructions::ADD:
-			return "ADD";
-		case instructions::DIV:
-			return "DIV";
-		case instructions::MUL:
-			return "MUL";
-		case instructions::MOV:
-			return "MOV";
-		case instructions::CMP:
-			return "CMP";
-		case instructions::JMP:
-			return "JMP";
-		case instructions::JMPIMM:
-			return "JMPIMM";
-		case instructions::JMPIF:
-			return "JMPCMP";
-		case instructions::JMPREL:
-			return "JMPREL";
-		case instructions::JMPRELIF:
-			return "JMPRELCMP";
-		case instructions::OUT:
-			return "OUT";
-		case instructions::IN:
-			return "IN";
-		case instructions::HALT:
-			return "HALT";
-		default:
-			return "INVALID";
-	}
+        case NOP:        return "NOP";
+        case CALL:       return "CALL";
+        case RET:        return "RET";
+        case POP:        return "POP";
+        case PUSH:       return "PUSH";
+        case READIMM4:   return "READIMM4";
+        case READIMM2:   return "READIMM2";
+        case READIMM1:   return "READIMM1";
+        case READPTR4:   return "READPTR4";
+        case READPTR2:   return "READPTR2";
+        case READPTR1:   return "READPTR1";
+        case WRITEIMM4:  return "WRITEIMM4";
+        case WRITEIMM2:  return "WRITEIMM2";
+        case WRITEIMM1:  return "WRITEIMM1";
+        case WRITEPTR4:  return "WRITEPTR4";
+        case WRITEPTR2:  return "WRITEPTR2";
+        case WRITEPTR1:  return "WRITEPTR1";
+        case ADD:        return "ADD";
+        case DIV:        return "DIV";
+        case MUL:        return "MUL";
+        case LSHIFT:     return "LSHIFT";
+        case RSHIFT:     return "RSHIFT";
+        case XOR:        return "XOR";
+        case AND:        return "AND";
+        case OR:         return "OR";
+        case MOV:        return "MOV";
+        case CMP:        return "CMP";
+        case JMP:        return "JMP";
+        case JMPIMM:     return "JMPIMM";
+        case JMPIF:      return "JMPIF";
+        case JMPREL:     return "JMPREL";
+        case JMPRELIF:   return "JMPRELIF";
+        case OUT:        return "OUT";
+        case IN:         return "IN";
+        case INT:        return "INT";
+        case HALT:       return "HALT";
+        case INC:        return "INC";
+        case DEC:        return "DEC";
+        case PUSHREG:    return "PUSHREG";
+        case POPREG:     return "POPREG";
+        case SUB:        return "SUB";
+        case IDIV:       return "IDIV";
+        case IMUL:       return "IMUL";
+        case CLHI:       return "CLHI";
+        case STHI:       return "STHI";
+        case HIRET:      return "HIRET";
+        default:         return "UNKNOWN";
+    }
 }
 
 uint32_t cpu::popStack()
@@ -128,7 +144,7 @@ uint32_t cpu::popStack()
 	}
 }
 
-uint32_t cpu::getCycleCount()
+uint64_t cpu::getCycleCount()
 {
 	return cycleCount;
 }
@@ -172,6 +188,8 @@ uint32_t cpu::readGeneralRegister(uint32_t index)
 		return BP;
 	case 7:
 		return RF;
+	case 8:
+		return HIREG;
 	default:
 		std::stringstream errorMessage;
 		errorMessage << "Register read: Illegal register value, index: " << index;
@@ -205,6 +223,9 @@ void cpu::writeGeneralRegister(uint32_t index, uint32_t value)
 	case 6:
 		BP = value;
 		break;
+	case 8:
+		HIREG = value;
+		break;
 	default:
 		//std::cout << "Illegal: " << index << " value: " << value << "\n";
 		std::stringstream errorMessage;
@@ -218,7 +239,7 @@ void cpu::writeMemory4(uint32_t index, uint32_t value)
 {
 	if (index < CPU_AVALIABLE_MEMORY)
 	{
-		//dirty memory write tehehe 
+		// dirty memory write tehehe 
 		// dirty memory poking to allow for misaligned uint32_t insertion
 		*((uint32_t*)(memoryArray + index)) = value;
 	}
@@ -323,7 +344,10 @@ void cpu::handleOutInstruction(instructionData& instructionObj)
 	switch (instructionObj.oprandB)
 	{
 	case 0:
-		//std::cout << (char)(readGeneralRegister(instructionObj.oprandA) & 0xFF);
+		outputMutex.lock();
+		stringBuffer += (char)(readGeneralRegister(instructionObj.oprandA) & 0xFF);
+		outputMutex.unlock(); 
+		//std::cout <<(char)(readGeneralRegister(instructionObj.oprandA) & 0xFF);
 		break;
 	}
 }
@@ -332,6 +356,8 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 {
 	uint32_t address;
 	uint64_t result;
+	uint64_t remainder=0;
+
 	switch (instructionObj.instr)
 	{
 	case instructions::MOV:
@@ -410,13 +436,17 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 		writeGeneralRegister(instructionObj.oprandA, readMemory1(readGeneralRegister(instructionObj.oprandB)));
 		break;
 	case instructions::SUB:
-		writeGeneralRegister(instructionObj.oprandA, subtractAndSetFlags(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandB)));
+		writeGeneralRegister(instructionObj.oprandA, subtractAndSetFlags(readGeneralRegister(instructionObj.oprandA), readGeneralRegister(instructionObj.oprandB)));
 		break;
 	case instructions::ADD:
-		result = (uint64_t)readGeneralRegister(instructionObj.oprandA) + (uint64_t)readGeneralRegister(instructionObj.oprandB);
-		writeGeneralRegister(instructionObj.oprandA, (uint32_t)result);
-		RF = (RF & 0b11111101) | ((uint32_t)result & 2147483648);
-		RF = (RF & 0b11111011) | ((result >> 32)!=0);
+		writeGeneralRegister(instructionObj.oprandA, addAndSetFlags(readGeneralRegister(instructionObj.oprandA), readGeneralRegister(instructionObj.oprandB)));
+		break;
+	case instructions::DIV:
+		writeGeneralRegister(instructionObj.oprandA, unsignedDivAndSetFlags(readGeneralRegister(instructionObj.oprandA), readGeneralRegister(instructionObj.oprandB), remainder));
+		writeGeneralRegister(instructionObj.oprandC, remainder);
+		break;
+	case instructions::MUL:
+		writeGeneralRegister(instructionObj.oprandA, unsignedMulAndSetFlags(readGeneralRegister(instructionObj.oprandA), readGeneralRegister(instructionObj.oprandB)));
 		break;
 	case instructions::XOR:
 		writeGeneralRegister(instructionObj.oprandA, readGeneralRegister(instructionObj.oprandA) ^ readGeneralRegister(instructionObj.oprandB));
@@ -432,6 +462,24 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 		{
 			PC = instructionObj.oprandA;
 		}
+		break;
+	case instructions::CLHI:
+		RF &= 0xef;
+		break;
+	case instructions::STHI:
+		if (!isInHardwareInterrupt)
+		{
+			RF |= 0x10;
+		}
+		break;
+	case instructions::HIRET:
+		if (!isInHardwareInterrupt)
+		{
+			cpuDebugCheck("Hardware interrupt return while not in interrupt");
+		}
+		RF |= 0x10;
+		isInHardwareInterrupt = false;
+		PC = popStack();
 		break;
 	default:
 		std::stringstream errorStream;
@@ -486,6 +534,18 @@ int64_t cpu::subtractAndSetFlags(int64_t a, int64_t b)
 		this->RF&=0b11110111;
 	}
 	return sum;
+}
+
+uint64_t cpu::unsignedDivAndSetFlags(uint64_t a, uint64_t b, uint64_t& remainder)
+{
+	uint64_t division = a/b;
+	remainder = a%b;
+    return division;
+}
+
+uint64_t cpu::unsignedMulAndSetFlags(uint64_t a, uint64_t b)
+{
+    return a*b;
 }
 
 uint8_t cpu::readMemory1(uint32_t address)

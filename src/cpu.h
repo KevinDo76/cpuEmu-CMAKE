@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <limits.h>
+#include <mutex>
+#include <thread>
 
 class instructionData;
 
@@ -32,8 +34,6 @@ public:
 /*Done*/RET        = 0x02,    // no oprand, pull PC from Stack
 /*Done*/POP        = 0x03,	  // arg1: Reg Index Result
 /*Done*/PUSH       = 0x04,	  // arg1: Reg Index Value
-		//RDMSR,  //
-		//WRMSR,  //
 		READIMM4   = 0x05,	  // arg1: Reg Index Result / arg2: Address<32>
 		READIMM2   = 0x06,    // arg1: Reg Index Result / arg2: Address<32>
 		READIMM1   = 0x07,    // arg1: Reg Index Result / arg2: Address<32>
@@ -47,7 +47,7 @@ public:
 		WRITEPTR2  = 0x0f,	  // arg1: Reg Index PTR / arg2: Reg Index Value
 		WRITEPTR1  = 0x10,	  // arg1: Reg Index PTR / arg2: Reg Index Value
 /*Done*/ADD        = 0x11,	  // arg1: Reg Index Result/Oprand A / arg2: Reg Index Oprand B
-		DIV        = 0x12,	  // arg1: Reg Index Result/Oprand A / arg2: Reg Index Oprand B
+		DIV        = 0x12,	  // arg1: Reg Index Result/Oprand A / arg2: Reg Index Oprand B / arg3: Reg Index Result Remainder
 		MUL        = 0x13,	  // arg1: Reg Index Result/Oprand A / arg2: Reg Index Oprand B
 		LSHIFT	   = 0x14,    // arg1: Reg Index Result/Oprand A / arg2: Reg Index Amount
 		RSHIFT     = 0x15,	  // arg1: Reg Index Result/Oprand A / arg2: Reg Index Amount
@@ -70,6 +70,11 @@ public:
 /*Done*/PUSHREG    = 0x26,    // no oprands, push all register
 /*Done*/POPREG     = 0x27,    // no oprands, pop all register
 /*Done*/SUB        = 0x28,    // arg1: Reg Index Result/Oprand A / arg2: Reg Index Oprand B
+		IDIV       = 0x29,    // arg1: Reg Index Result/Oprand A / args: Reg Index Oprand B
+		IMUL       = 0x30,    // arg1: Reg Index Result/Oprand A / args: Reg Index Oprand B
+/*Done*/CLHI       = 0x31,    // no oprand, disable hardware interrupt
+/*Done*/STHI       = 0x32,    // no oprand, enable hardware interrupt
+/*Done*/HIRET      = 0x33,    // no oprand, return from hardware interrupt
 };
 
 	static std::string instructionEnumToName(instructions instr);
@@ -78,11 +83,16 @@ public:
 	static uint16_t flipEndian(uint16_t n);
 
 	uint32_t popStack();
-	uint32_t getCycleCount();
+	uint64_t getCycleCount();
 	void pushStack(uint32_t value);
 
+	bool hardwareInterruptTriggered;
 private:
 
+	std::thread* outputThread;
+	std::mutex outputMutex;
+	std::string stringBuffer;
+	bool isThreadRunning;
 	void cpuDebugCheck(std::string errorMessage);
 
 	bool clockHalted;
@@ -103,8 +113,9 @@ private:
 	//internal operation
 	int64_t addAndSetFlags(int64_t a, int64_t b);
 	int64_t subtractAndSetFlags(int64_t a, int64_t b);
-	
-	uint32_t cycleCount;
+	uint64_t unsignedMulAndSetFlags(uint64_t a, uint64_t b);
+	uint64_t unsignedDivAndSetFlags(uint64_t a, uint64_t b, uint64_t& remainder);
+	uint64_t cycleCount;
 
 	uint8_t readMemory1(uint32_t address);
 
@@ -116,6 +127,7 @@ private:
 	uint32_t SP; // Stack pointer
 	uint32_t BP; // Stack Base
 
+	uint32_t HIREG; //hardware interrupt pointer
 	uint8_t CMPREG; //ALU compare code.
 	uint8_t RF; //flag register 
 	// bit layout
@@ -124,7 +136,7 @@ private:
 	0
 	0
 	0
-	0
+	0 - Hardware Interrupt Enabled
 	
 	0 - Overflow/Underflow Flag (incorrect result in unsigned operation)
 	0 - Carry Flag (incorrect result in unsigned operation)
@@ -135,6 +147,8 @@ private:
 	*/
 
 	uint8_t* memoryArray;
+
+	bool isInHardwareInterrupt;
 };
 
 
