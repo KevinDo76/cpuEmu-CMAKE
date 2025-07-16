@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 class instructionData;
 
@@ -17,6 +18,7 @@ public:
 	cpu& operator=(const cpu&) = delete;
 	bool clockTick();
 	bool loadBinaryImage(std::string);
+	void loadBinaryArray(std::vector<char>&);
 	bool getHaltState();
 
 	enum CMPenum {
@@ -86,6 +88,9 @@ public:
 	uint64_t getCycleCount();
 	void pushStack(uint32_t value);
 
+	uint32_t readGeneralRegister(uint32_t index);
+	void writeGeneralRegister(uint32_t index, uint32_t value);
+
 	bool hardwareInterruptTriggered;
 private:
 
@@ -96,9 +101,6 @@ private:
 	void cpuDebugCheck(std::string errorMessage);
 
 	bool clockHalted;
-
-	uint32_t readGeneralRegister(uint32_t index);
-	void writeGeneralRegister(uint32_t index, uint32_t value);
 
 	void writeMemory4(uint32_t index, uint32_t value);
 	void writeMemory2(uint32_t index, uint16_t value);
@@ -111,8 +113,8 @@ private:
 
 	bool decodeAndExecute(instructionData& instructionObj);
 	//internal operation
-	int64_t addAndSetFlags(int64_t a, int64_t b);
-	int64_t subtractAndSetFlags(int64_t a, int64_t b);
+	uint32_t addAndSetFlags(uint32_t a, uint32_t b);
+	uint32_t subtractAndSetFlags(uint32_t a, uint32_t b);
 	uint64_t unsignedMulAndSetFlags(uint64_t a, uint64_t b);
 	uint64_t unsignedDivAndSetFlags(uint64_t a, uint64_t b, uint64_t& remainder);
 	uint64_t cycleCount;
@@ -138,7 +140,7 @@ private:
 	0
 	0 - Hardware Interrupt Enabled
 	
-	0 - Overflow/Underflow Flag (incorrect result in unsigned operation)
+	0 - Overflow/Underflow Flag (incorrect result in signed operation)
 	0 - Carry Flag (incorrect result in unsigned operation)
 	0 - Sign Flag
 	0 - Compare success

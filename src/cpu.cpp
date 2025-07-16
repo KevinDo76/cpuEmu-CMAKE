@@ -5,19 +5,20 @@
 #include <fstream>
 #include "cpu.h" 
 #include <chrono>
+#include <memory.h>
 
 void handleOutput(bool* isRunning, std::string* buffer, std::mutex* mutex)
 {
-	std::cout<<"Thread Started\n";
+	//std::cout<<"Thread Started\n";
 	while (*(isRunning))
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		mutex->lock();
-		std::cout<<*buffer;
+		//std::cout<<*buffer;
 		*buffer = "";
 		mutex->unlock();
 	}
-	std::cout<<"Thread Exiting\n";
+	//std::cout<<"Thread Exiting\n";
 }
 
 cpu::cpu()
@@ -67,6 +68,11 @@ bool cpu::loadBinaryImage(std::string path)
 	if (!binFile.is_open()) { return false; }
 	binFile.read((char*)memoryArray, CPU_AVALIABLE_MEMORY);
 	return true;
+}
+
+void cpu::loadBinaryArray(std::vector<char>& source)
+{
+	memcpy((void*)memoryArray, &source[0], source.size());
 }
 
 bool cpu::getHaltState()
@@ -490,9 +496,9 @@ bool cpu::decodeAndExecute(instructionData& instructionObj)
 	return true;
 }
 
-int64_t cpu::addAndSetFlags(int64_t a, int64_t b)
+uint32_t cpu::addAndSetFlags(uint32_t a, uint32_t b)
 {
-    int64_t sum = a+b;
+    int64_t sum = (int64_t)a+(int64_t)b;
 	if ((uint64_t)(sum>>32))
 	{
 		this->RF|=0b00000100;
@@ -510,12 +516,12 @@ int64_t cpu::addAndSetFlags(int64_t a, int64_t b)
 	{
 		this->RF&=0b11110111;
 	}
-	return sum;
+	return a+b;
 }
 
-int64_t cpu::subtractAndSetFlags(int64_t a, int64_t b)
+uint32_t cpu::subtractAndSetFlags(uint32_t a, uint32_t b)
 {
-    int64_t sum = a-b;
+    int64_t sum = (int64_t)a-(int64_t)b;
 	if ((uint64_t)(sum>>32))
 	{
 		this->RF|=0b00000100;
@@ -533,7 +539,8 @@ int64_t cpu::subtractAndSetFlags(int64_t a, int64_t b)
 	{
 		this->RF&=0b11110111;
 	}
-	return sum;
+	//std::cout<<(uint32_t)a-(uint32_t)b<<"\n";
+	return a-b;
 }
 
 uint64_t cpu::unsignedDivAndSetFlags(uint64_t a, uint64_t b, uint64_t& remainder)

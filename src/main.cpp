@@ -1,9 +1,11 @@
 #include <iostream>
 #include "cpu.h"
+#include "cpuUnitTest.h"
 #include <chrono>
 #include <thread>
 int main()
 {
+	cpuUnitTest();
 	cpu CPU;
 	bool isFullSpeed = false;
 	int clockSpeedHertz = 1000000;
