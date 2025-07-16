@@ -47,7 +47,6 @@ bool cpu::clockTick()
 
 	if ((RF & 0x10) && hardwareInterruptTriggered && !isInHardwareInterrupt)
 	{
-		hardwareInterruptTriggered = false;
 		isInHardwareInterrupt = true;
 		RF &= 0xef;
 		pushStack(PC);
@@ -55,6 +54,7 @@ bool cpu::clockTick()
 	} else {
 		incrementAndFetch(data);
 	}
+	hardwareInterruptTriggered = false;
 	//std::cout<< instructionEnumToName(data.instr)<<"\n";
 	decodeAndExecute(data);
 

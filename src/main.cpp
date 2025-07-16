@@ -23,7 +23,7 @@ int main()
 	{
 		while (!CPU.getHaltState())
 		{
-			if (CPU.getCycleCount()==2131)
+			if (CPU.getCycleCount()==200)
 			{
 				CPU.hardwareInterruptTriggered = true;
 			}
